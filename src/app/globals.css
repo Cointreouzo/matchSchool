@@ -86,6 +86,63 @@ button:focus {
   transition: all 0.2s ease-in-out;
 }
 
+/* 动画延迟类 */
+.animation-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}
+
+/* Toast样式优化 */
+[data-sonner-toast] {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  color: #374151 !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background: #f0fdf4 !important;
+  border-color: #16a34a !important;
+  color: #166534 !important;
+}
+
+[data-sonner-toast][data-type="error"] {
+  background: #fef2f2 !important;
+  border-color: #dc2626 !important;
+  color: #991b1b !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-weight: 600;
+}
+
+[data-sonner-toast] [data-description] {
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+[data-sonner-toast] [data-button] {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+[data-sonner-toast] [data-button]:not([data-type="cancel"]) {
+  background: #374151;
+  color: white;
+}
+
+[data-sonner-toast] [data-button][data-type="cancel"] {
+  background: transparent;
+  color: #6b7280;
+  border-color: #d1d5db;
+}
+
 
 
 @layer base {

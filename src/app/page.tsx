@@ -29,21 +29,27 @@ export default function Home() {
     }
   }
 
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 1:
-        return <SchoolMatching onComplete={() => handleStepComplete(1)} />
-      case 2:
-        return <MajorRequirementMatching onComplete={() => handleStepComplete(2)} />
-      case 3:
-        return <MajorBackgroundMatching onComplete={() => handleStepComplete(3)} />
-      case 4:
-        return <GenerateReport onComplete={() => handleStepComplete(4)} />
-      case 5:
-        return <CaseCalibration onComplete={() => handleStepComplete(5)} />
-      default:
-        return <SchoolMatching onComplete={() => handleStepComplete(1)} />
-    }
+  // 渲染所有步骤组件，通过CSS控制显示/隐藏（避免卸载组件）
+  const renderAllSteps = () => {
+    return (
+      <>
+        <div className={currentStep === 1 ? '' : 'hidden'}>
+          <SchoolMatching onComplete={() => handleStepComplete(1)} />
+        </div>
+        <div className={currentStep === 2 ? '' : 'hidden'}>
+          <MajorRequirementMatching onComplete={() => handleStepComplete(2)} />
+        </div>
+        <div className={currentStep === 3 ? '' : 'hidden'}>
+          <MajorBackgroundMatching onComplete={() => handleStepComplete(3)} />
+        </div>
+        <div className={currentStep === 4 ? '' : 'hidden'}>
+          <GenerateReport onComplete={() => handleStepComplete(4)} />
+        </div>
+        <div className={currentStep === 5 ? '' : 'hidden'}>
+          <CaseCalibration onComplete={() => handleStepComplete(5)} />
+        </div>
+      </>
+    )
   }
 
   return (
@@ -58,7 +64,7 @@ export default function Home() {
 
       {/* 当前步骤内容 */}
       <main>
-        {renderCurrentStep()}
+        {renderAllSteps()}
       </main>
 
       {/* 页脚 */}

@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from 'react'
+import { schoolMatchAPI, handleAPIError, type SchoolMatchResponse } from '@/lib/api'
+import PromptCustomizer, { type PromptData } from './PromptCustomizer'
+import { toast } from "sonner"
 
-// 模拟学校数据
-const mockSchools = [
-  '清华大学', '北京大学', '复旦大学', '上海交通大学', '浙江大学',
-  '南京大学', '中国科学技术大学', '哈尔滨工业大学', '西安交通大学',
-  '北京理工大学', '天津大学', '东南大学', '华中科技大学', '北京航空航天大学'
-]
 
-const mockOverseasSchools = [
-  'Harvard University', 'Stanford University', 'MIT', 'Oxford University',
-  'Cambridge University', 'Yale University', 'Princeton University',
-  'University of Toronto', 'University of British Columbia', 'McGill University',
-  'University of Melbourne', 'Australian National University', 'University of Sydney'
-]
 
 interface SchoolMatchingProps {
   onComplete: () => void
 }
 
 export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
+  // 使用纯React状态，组件不会被卸载所以状态会自动保持
   const [formData, setFormData] = useState({
     studentSchool: '',
     gradeSystem: '百分制',
@@ -26,11 +18,29 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     isCurrentStudent: true,
     targetSchool: ''
   })
+  
+  const [promptData, setPromptData] = useState<PromptData>({
+    role: '',
+    task: '',
+    output_format: ''
+  })
+  
+  const [showPromptCard, setShowPromptCard] = useState(false)
+  const [matchResult, setMatchResult] = useState<SchoolMatchResponse | null>(null)
 
   const [schoolSuggestions, setSchoolSuggestions] = useState<string[]>([])
   const [overseasSuggestions, setOverseasSuggestions] = useState<string[]>([])
-  const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false)
+  const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false)  
   const [showOverseasSuggestions, setShowOverseasSuggestions] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [progressMessage, setProgressMessage] = useState('')
+
+  // 组件挂载时的调试信息（仅在开发环境显示）
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('SchoolMatching组件已挂载，使用纯React状态（组件不卸载）')
+    }
+  }, [])
 
   // 分数转换函数
   const convertGrade = (grade: string, fromSystem: string, toSystem: string): string => {
@@ -76,37 +86,22 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     }
   }
 
-  // 实时查询国内学校
-  useEffect(() => {
-    if (formData.studentSchool.trim()) {
-      const filtered = mockSchools.filter(school =>
-        school.toLowerCase().includes(formData.studentSchool.toLowerCase())
-      )
-      setSchoolSuggestions(filtered.slice(0, 5))
-      setShowSchoolSuggestions(filtered.length > 0)
-    } else {
-      setShowSchoolSuggestions(false)
-    }
-  }, [formData.studentSchool])
-
-  // 实时查询海外学校
-  useEffect(() => {
-    if (formData.targetSchool.trim()) {
-      const filtered = mockOverseasSchools.filter(school =>
-        school.toLowerCase().includes(formData.targetSchool.toLowerCase())
-      )
-      setOverseasSuggestions(filtered.slice(0, 5))
-      setShowOverseasSuggestions(filtered.length > 0)
-    } else {
-      setShowOverseasSuggestions(false)
-    }
-  }, [formData.targetSchool])
-
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }))
+  }
+
+  const handlePromptChange = (field: string, value: string) => {
+    setPromptData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleTogglePromptCard = () => {
+    setShowPromptCard(!showPromptCard)
   }
 
   const handleGradeSystemChange = (newSystem: string) => {
@@ -159,13 +154,182 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     }
   }
 
+  // 提交表单并调用API
+  const handleSubmit = async () => {
+    // 验证必填字段
+    if (!formData.studentSchool || !formData.grade || !formData.targetSchool) {
+      toast.error('请填写完整的信息', {
+        description: '请确保所有必填字段都已填写'
+      })
+      return
+    }
+
+    setIsLoading(true)
+    setProgressMessage('正在准备匹配请求...')
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('开始提交匹配请求，当前数据:', { formData, promptData })
+    }
+    
+    try {
+      // 合并基础数据和提示词数据
+      const requestData = {
+        ...formData,
+        ...(promptData.role && { role: promptData.role }),
+        ...(promptData.task && { task: promptData.task }),
+        ...(promptData.output_format && { output_format: promptData.output_format })
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('发送给API的数据:', requestData)
+      }
+
+      setProgressMessage('正在连接匹配服务...')
+      
+      // 使用api.ts中的工具类调用API
+      const result = await schoolMatchAPI.match(requestData)
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('API返回结果类型:', typeof result, result instanceof Response)
+      }
+      
+      // 检查是否是SSE响应
+      if (result instanceof Response) {
+        // 处理SSE流
+        await schoolMatchAPI.processSSEStream(
+          result,
+          // onProgress: 实时更新进度消息
+          (message: string) => {
+            setProgressMessage(message)
+          },
+          // onComplete: 处理最终结果
+          (finalResult: any) => {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('SSE流处理完成:', finalResult)
+            }
+            setMatchResult(finalResult)
+            toast.success('匹配完成', {
+              description: '院校匹配已成功完成，请查看结果'
+            })
+          },
+          // onError: 处理错误
+          (error: string) => {
+            console.error('SSE流处理错误:', error)
+            toast.error('匹配失败', {
+              description: error
+            })
+          }
+        )
+      } else {
+        // 普通JSON响应（向后兼容）
+        if (process.env.NODE_ENV === 'development') {
+          console.log('API返回结果:', result)
+        }
+        
+        // 如果返回结果包含进度信息，显示最后一条进度消息
+        if (result.progressMessages && result.progressMessages.length > 0) {
+          setProgressMessage(result.progressMessages[result.progressMessages.length - 1])
+          // 延迟一下让用户看到最后的进度信息
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        setMatchResult(result)
+        toast.success('匹配完成', {
+          description: '院校匹配已成功完成，请查看结果'
+        })
+      }
+      
+    } catch (error) {
+      console.error('匹配失败:', error)
+      const errorMessage = handleAPIError(error)
+      toast.error('匹配失败', {
+        description: errorMessage
+      })
+    } finally {
+      setIsLoading(false)
+      setProgressMessage('')
+    }
+  }
+
+  // 清除所有数据
+  const handleClearAll = () => {
+    toast('确定要清除所有数据吗？', {
+      description: '这将删除表单内容和查询结果，此操作无法撤销。',
+      action: {
+        label: '确认清除',
+        onClick: () => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('用户确认清除所有数据')
+          }
+          
+          // 重置所有状态
+          const defaultFormData = {
+            studentSchool: '',
+            gradeSystem: '百分制',
+            grade: '',
+            isCurrentStudent: true,
+            targetSchool: ''
+          }
+          const defaultPromptData: PromptData = {
+            role: '',
+            task: '',
+            output_format: ''
+          }
+          
+          setFormData(defaultFormData)
+          setPromptData(defaultPromptData)
+          setMatchResult(null)
+          setShowPromptCard(false)
+          
+          toast.success('数据已清除', {
+            description: '所有表单内容和查询结果已被清除'
+          })
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('所有数据已清除')
+          }
+        }
+      },
+      cancel: {
+        label: '取消',
+        onClick: () => {
+          // 取消操作，无需处理
+        }
+      }
+    })
+  }
+
+  // 格式化匹配结果显示
+  const formatMatchResult = (response: string) => {
+    // 将响应文本转换为HTML格式
+    return response
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>')
+  }
+
+  // 检查是否有数据需要显示清除按钮
+  const hasData = Boolean(
+    matchResult ||
+    formData.studentSchool ||
+    formData.grade ||
+    formData.targetSchool ||
+    promptData.role ||
+    promptData.task ||
+    promptData.output_format
+  )
+
   return (
-    <div className="max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 py-16  min-h-screen">
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-0 p-10 hover:shadow-3xl transition-all duration-300">
+    <div className="max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 py-16 min-h-screen">
+      {/* 主表单卡片 */}
+      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-0 p-10 hover:shadow-3xl transition-all duration-300 mb-8">
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-black mb-3">
             院校匹配
           </h2>
+          <p className="text-gray-600">
+            填写您的基本信息，我们将为您匹配最适合的海外院校
+          </p>
         </div>
         
         <div className="space-y-8">
@@ -181,23 +345,6 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
               placeholder="请输入学校名字"
               className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
             />
-            {/* 学校建议列表 */}
-            {showSchoolSuggestions && (
-              <div className="absolute z-20 w-full mt-2 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-                {schoolSuggestions.map((school, index) => (
-                  <div
-                    key={index}
-                    className="px-5 py-3 hover:bg-gray-100 cursor-pointer transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl border-b border-gray-100 last:border-b-0"
-                    onClick={() => {
-                      handleInputChange('studentSchool', school)
-                      setShowSchoolSuggestions(false)
-                    }}
-                  >
-                    <span className="text-gray-800 font-medium">{school}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* 客户均分 */}
@@ -214,7 +361,7 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
                   className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 min-w-[120px] cursor-pointer"
                 >
                   <option value="百分制">百分制</option>
-                  <option value="百分制">英国学位制</option>
+                  <option value="英国学位制">英国学位制</option>
                   <option value="五分制">五分制</option>
                   <option value="四分制">四分制</option>
                 </select>
@@ -310,35 +457,130 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
               placeholder="请输入心仪的海外院校名字"
               className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
             />
-            {/* 海外学校建议列表 */}
-            {showOverseasSuggestions && (
-              <div className="absolute z-20 w-full mt-2 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-                {overseasSuggestions.map((school, index) => (
-                  <div
-                    key={index}
-                    className="px-5 py-3 hover:bg-gray-100 cursor-pointer transition-colors duration-150 first:rounded-t-2xl last:rounded-b-2xl border-b border-gray-100 last:border-b-0"
-                    onClick={() => {
-                      handleInputChange('targetSchool', school)
-                      setShowOverseasSuggestions(false)
-                    }}
-                  >
-                    <span className="text-gray-800 font-medium">{school}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
+
+          {/* 提示词自定义组件 */}
+          <PromptCustomizer
+            promptData={promptData}
+            onPromptChange={handlePromptChange}
+            showPromptCard={showPromptCard}
+            onTogglePromptCard={handleTogglePromptCard}
+          />
         </div>
         
-        <div className="mt-12 flex justify-center">
-          <button
-            onClick={onComplete}
-            className="px-8 py-4 bg-black text-white font-semibold rounded-2xl hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 min-w-[200px]"
-          >
-            ✨ 完成此步骤
-          </button>
+        {/* 操作按钮区域 */}
+        <div className="mt-8 flex flex-col items-center space-y-4">
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading}
+              className="px-8 py-4 bg-black text-white font-semibold rounded-2xl hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 min-w-[200px] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  匹配中...
+                </div>
+              ) : (
+                '🎯 开始匹配'
+              )}
+            </button>
+            
+            {hasData && (
+              <button
+                onClick={handleClearAll}
+                className="px-6 py-4 bg-gray-100 text-gray-700 font-semibold rounded-2xl hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300"
+              >
+                🗑️ 清除数据
+              </button>
+            )}
+          </div>
+          
+          {/* 进度提示 */}
+          {isLoading && (
+            <div className="bg-gray-100 border border-gray-300 rounded-2xl px-6 py-3 text-center">
+              <div className="flex items-center justify-center">
+                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce mr-2"></div>
+                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce mr-2 animation-delay-100"></div>
+                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce animation-delay-200"></div>
+                <span className="text-gray-700 font-medium ml-3">
+                  {progressMessage || '正在处理请求...'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 匹配结果卡片 - 只在有结果时显示 */}
+      {matchResult && (
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-0 p-10 hover:shadow-3xl transition-all duration-300 mb-8">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-black mb-3">
+              🎯 匹配结果
+            </h2>
+            <p className="text-gray-600">
+              基于您的背景为您匹配到以下院校
+            </p>
+          </div>
+
+          {/* 用户输入信息回显 */}
+          <div className="bg-gray-50 rounded-2xl p-6 mb-8">
+            <h3 className="font-semibold text-gray-800 mb-4">📋 查询信息</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-semibold text-gray-700">学校：</span>
+                <span className="text-gray-600">{formData.studentSchool}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">均分：</span>
+                <span className="text-gray-600">{formData.gradeSystem} {formData.grade}分</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">状态：</span>
+                <span className="text-gray-600">{formData.isCurrentStudent ? '在读' : '已毕业'}</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">目标院校：</span>
+                <span className="text-gray-600">{formData.targetSchool}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 匹配结果内容 */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 mb-6">
+            <div 
+              className="prose prose-gray max-w-none"
+              dangerouslySetInnerHTML={{ 
+                __html: formatMatchResult(matchResult.response) 
+              }}
+            />
+          </div>
+
+          {/* 时间戳和会话信息 */}
+          <div className="text-center text-sm text-gray-500 mb-6">
+            <div>匹配时间: {new Date(matchResult.timestamp).toLocaleString('zh-CN')}</div>
+            <div className="text-xs mt-1">会话ID: {matchResult.session_id}</div>
+          </div>
+          
+          {/* 结果操作按钮 */}
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => setMatchResult(null)}
+              className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-2xl hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300"
+            >
+              🔄 清除结果
+            </button>
+            <button
+              onClick={onComplete}
+              className="px-8 py-4 bg-black text-white font-semibold rounded-2xl hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95"
+            >
+              ✨ 继续下一步
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 } 
