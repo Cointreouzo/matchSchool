@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import StepNavigation from '@/components/StepNavigation'
-import SchoolMatching from '@/components/SchoolMatching'
+import SchoolMatching from '@/components/schoolmatching/SchoolMatching'
 import MajorRequirementMatching from '@/components/MajorRequirementMatching'
 import MajorBackgroundMatching from '@/components/MajorBackgroundMatching'
 import GenerateReport from '@/components/GenerateReport'

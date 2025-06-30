@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { schoolMatchAPI, handleAPIError, type SchoolMatchResponse } from '@/lib/api'
-import PromptCustomizer, { type PromptData } from './PromptCustomizer'
+import { type PromptData } from '../PromptCustomizer'
+import SchoolMatchingForm, { type FormData } from './SchoolMatchingForm'
 import { toast } from "sonner"
 
 
@@ -11,12 +12,18 @@ interface SchoolMatchingProps {
 
 export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
   // 使用纯React状态，组件不会被卸载所以状态会自动保持
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     studentSchool: '',
     gradeSystem: '百分制',
     grade: '',
     isCurrentStudent: true,
-    targetSchool: ''
+    targetSchool: '',
+    major: '',
+    languageTestType: '',
+    languageTestScore: '',
+    standardizedTestType: '',
+    standardizedTestScore: '',
+    requirements: ''
   })
   
   const [promptData, setPromptData] = useState<PromptData>({
@@ -118,18 +125,7 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     }))
   }
 
-  const getGradePlaceholder = () => {
-    switch (formData.gradeSystem) {
-      case '五分制':
-        return '请输入0-5的分数'
-      case '四分制':
-        return '请输入0-4的分数'
-      case '百分制':
-        return '请输入0-100的分数'
-      default:
-        return '请输入分数'
-    }
-  }
+
 
   const validateGrade = (grade: string, system: string): boolean => {
     const numGrade = parseFloat(grade)
@@ -157,7 +153,7 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
   // 提交表单并调用API
   const handleSubmit = async () => {
     // 验证必填字段
-    if (!formData.studentSchool || !formData.grade || !formData.targetSchool) {
+    if (!formData.studentSchool || !formData.grade ) {
       toast.error('请填写完整的信息', {
         description: '请确保所有必填字段都已填写'
       })
@@ -263,12 +259,18 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
           }
           
           // 重置所有状态
-          const defaultFormData = {
+          const defaultFormData: FormData = {
             studentSchool: '',
             gradeSystem: '百分制',
             grade: '',
             isCurrentStudent: true,
-            targetSchool: ''
+            targetSchool: '',
+            major: '',
+            languageTestType: '',
+            languageTestScore: '',
+            standardizedTestType: '',
+            standardizedTestScore: '',
+            requirements: ''
           }
           const defaultPromptData: PromptData = {
             role: '',
@@ -314,6 +316,12 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     formData.studentSchool ||
     formData.grade ||
     formData.targetSchool ||
+    formData.major ||
+    formData.languageTestType ||
+    formData.languageTestScore ||
+    formData.standardizedTestType ||
+    formData.standardizedTestScore ||
+    formData.requirements ||
     promptData.role ||
     promptData.task ||
     promptData.output_format
@@ -321,196 +329,22 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
 
   return (
     <div className="max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 py-16 min-h-screen">
-      {/* 主表单卡片 */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-0 p-10 hover:shadow-3xl transition-all duration-300 mb-8">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-black mb-3">
-            院校匹配
-          </h2>
-          <p className="text-gray-600">
-            填写您的基本信息，我们将为您匹配最适合的海外院校
-          </p>
-        </div>
-        
-        <div className="space-y-8">
-          {/* 客户学校名字输入框 */}
-          <div className="relative">
-            <label className="block text-sm font-semibold text-gray-800 mb-3">
-              🏫 客户学校名字
-            </label>
-            <input
-              type="text"
-              value={formData.studentSchool}
-              onChange={(e) => handleInputChange('studentSchool', e.target.value)}
-              placeholder="请输入学校名字"
-              className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
-            />
-          </div>
-
-          {/* 客户均分 */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-3">
-              📊 客户均分
-            </label>
-            <div className="flex space-x-4">
-              {/* 分制选择 */}
-              <div className="relative">
-                <select
-                  value={formData.gradeSystem}
-                  onChange={(e) => handleGradeSystemChange(e.target.value)}
-                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 min-w-[120px] cursor-pointer"
-                >
-                  <option value="百分制">百分制</option>
-                  <option value="英国学位制">英国学位制</option>
-                  <option value="五分制">五分制</option>
-                  <option value="四分制">四分制</option>
-                </select>
-                {/* 自定义下拉箭头 */}
-                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-              
-              {/* 分数输入 */}
-              <input
-                type="number"
-                value={formData.grade}
-                onChange={(e) => handleGradeChange(e.target.value)}
-                placeholder={getGradePlaceholder()}
-                className="flex-1 px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
-                min="0"
-                max={formData.gradeSystem === '百分制' ? '100' : formData.gradeSystem === '五分制' ? '5' : '4'}
-                step={formData.gradeSystem === '百分制' ? '1' : '0.1'}
-              />
-            </div>
-            {/* 分数范围提示 */}
-            <p className="text-xs text-gray-500 mt-2">
-              {formData.gradeSystem === '百分制' && '范围：0-100分'}
-              {formData.gradeSystem === '英国学位制' && '范围：0-100分'}
-              {formData.gradeSystem === '五分制' && '范围：0-5分（支持小数）'}
-              {formData.gradeSystem === '四分制' && '范围：0-4分（支持小数）'}
-            </p>
-          </div>
-
-          {/* 是否在读 */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-4">
-              🎓 是否在读
-            </label>
-            <div className="flex space-x-6">
-              <label className="flex items-center cursor-pointer group">
-                <div className="relative">
-                  <input
-                    type="radio"
-                    name="isCurrentStudent"
-                    checked={formData.isCurrentStudent === true}
-                    onChange={() => handleInputChange('isCurrentStudent', true)}
-                    className="sr-only"
-                  />
-                  <div className={`w-6 h-6 rounded-full border-2 transition-all duration-200 ${
-                    formData.isCurrentStudent === true 
-                      ? 'border-black bg-black' 
-                      : 'border-gray-300 bg-white group-hover:border-gray-500'
-                  }`}>
-                    {formData.isCurrentStudent === true && (
-                      <div className="w-2 h-2 bg-white rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
-                    )}
-                  </div>
-                </div>
-                <span className="ml-3 text-gray-800 font-medium group-hover:text-black transition-colors duration-200">是</span>
-              </label>
-              <label className="flex items-center cursor-pointer group">
-                <div className="relative">
-                  <input
-                    type="radio"
-                    name="isCurrentStudent"
-                    checked={formData.isCurrentStudent === false}
-                    onChange={() => handleInputChange('isCurrentStudent', false)}
-                    className="sr-only"
-                  />
-                  <div className={`w-6 h-6 rounded-full border-2 transition-all duration-200 ${
-                    formData.isCurrentStudent === false 
-                      ? 'border-black bg-black' 
-                      : 'border-gray-300 bg-white group-hover:border-gray-500'
-                  }`}>
-                    {formData.isCurrentStudent === false && (
-                      <div className="w-2 h-2 bg-white rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
-                    )}
-                  </div>
-                </div>
-                <span className="ml-3 text-gray-800 font-medium group-hover:text-black transition-colors duration-200">否</span>
-              </label>
-            </div>
-          </div>
-
-          {/* 心仪海外院校名字 */}
-          <div className="relative">
-            <label className="block text-sm font-semibold text-gray-800 mb-3">
-              🌍 心仪海外院校名字
-            </label>
-            <input
-              type="text"
-              value={formData.targetSchool}
-              onChange={(e) => handleInputChange('targetSchool', e.target.value)}
-              placeholder="请输入心仪的海外院校名字"
-              className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
-            />
-          </div>
-
-          {/* 提示词自定义组件 */}
-          <PromptCustomizer
-            promptData={promptData}
-            onPromptChange={handlePromptChange}
-            showPromptCard={showPromptCard}
-            onTogglePromptCard={handleTogglePromptCard}
-          />
-        </div>
-        
-        {/* 操作按钮区域 */}
-        <div className="mt-8 flex flex-col items-center space-y-4">
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="px-8 py-4 bg-black text-white font-semibold rounded-2xl hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95 min-w-[200px] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  匹配中...
-                </div>
-              ) : (
-                '🎯 开始匹配'
-              )}
-            </button>
-            
-            {hasData && (
-              <button
-                onClick={handleClearAll}
-                className="px-6 py-4 bg-gray-100 text-gray-700 font-semibold rounded-2xl hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300"
-              >
-                🗑️ 清除数据
-              </button>
-            )}
-          </div>
-          
-          {/* 进度提示 */}
-          {isLoading && (
-            <div className="bg-gray-100 border border-gray-300 rounded-2xl px-6 py-3 text-center">
-              <div className="flex items-center justify-center">
-                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce mr-2"></div>
-                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce mr-2 animation-delay-100"></div>
-                <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce animation-delay-200"></div>
-                <span className="text-gray-700 font-medium ml-3">
-                  {progressMessage || '正在处理请求...'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* 使用提取的表单组件 */}
+      <SchoolMatchingForm
+        formData={formData}
+        promptData={promptData}
+        showPromptCard={showPromptCard}
+        isLoading={isLoading}
+        progressMessage={progressMessage}
+        hasData={hasData}
+        onInputChange={handleInputChange}
+        onPromptChange={handlePromptChange}
+        onTogglePromptCard={handleTogglePromptCard}
+        onGradeSystemChange={handleGradeSystemChange}
+        onGradeChange={handleGradeChange}
+        onSubmit={handleSubmit}
+        onClearAll={handleClearAll}
+      />
 
       {/* 匹配结果卡片 - 只在有结果时显示 */}
       {matchResult && (
@@ -532,6 +366,12 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
                 <span className="font-semibold text-gray-700">学校：</span>
                 <span className="text-gray-600">{formData.studentSchool}</span>
               </div>
+              {formData.major && (
+                <div>
+                  <span className="font-semibold text-gray-700">专业：</span>
+                  <span className="text-gray-600">{formData.major}</span>
+                </div>
+              )}
               <div>
                 <span className="font-semibold text-gray-700">均分：</span>
                 <span className="text-gray-600">{formData.gradeSystem} {formData.grade}分</span>
@@ -540,10 +380,28 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
                 <span className="font-semibold text-gray-700">状态：</span>
                 <span className="text-gray-600">{formData.isCurrentStudent ? '在读' : '已毕业'}</span>
               </div>
+              {formData.languageTestType && formData.languageTestScore && (
+                <div>
+                  <span className="font-semibold text-gray-700">语言成绩：</span>
+                  <span className="text-gray-600">{formData.languageTestType} {formData.languageTestScore}分</span>
+                </div>
+              )}
+              {formData.standardizedTestType && formData.standardizedTestType !== '无' && formData.standardizedTestScore && (
+                <div>
+                  <span className="font-semibold text-gray-700">标准化考试：</span>
+                  <span className="text-gray-600">{formData.standardizedTestType} {formData.standardizedTestScore}分</span>
+                </div>
+              )}
               <div>
                 <span className="font-semibold text-gray-700">目标院校：</span>
                 <span className="text-gray-600">{formData.targetSchool}</span>
               </div>
+              {formData.requirements && (
+                <div className="md:col-span-2">
+                  <span className="font-semibold text-gray-700">其他需求：</span>
+                  <span className="text-gray-600">{formData.requirements}</span>
+                </div>
+              )}
             </div>
           </div>
 

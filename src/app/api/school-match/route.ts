@@ -150,6 +150,13 @@ export async function POST(request: NextRequest) {
       grade, 
       isCurrentStudent, 
       targetSchool,
+      // 新增的学生信息字段
+      major,
+      languageTestType,
+      languageTestScore,
+      standardizedTestType,
+      standardizedTestScore,
+      requirements,
       // 新增的提示词参数
       role,
       task,
@@ -162,6 +169,12 @@ export async function POST(request: NextRequest) {
       grade,
       isCurrentStudent,
       targetSchool,
+      major,
+      languageTestType,
+      languageTestScore,
+      standardizedTestType,
+      standardizedTestScore,
+      requirements,
       role,
       task,
       output_format
@@ -170,22 +183,47 @@ export async function POST(request: NextRequest) {
     // 构建发送给后端的消息
     let message = `我是${studentSchool}学生，`
     
+    // 添加专业信息
+    if (major && major.trim()) {
+      message += `专业是${major}，`
+    }
+    
     // 处理分制和分数
     if (gradeSystem === '英国学位制') {
-      message += `英国学位制${grade}分，`
+      message += `GPA为英国学位制${grade}分，`
     } else if (gradeSystem === '百分制') {
-      message += `百分制${grade}分，`
+      message += `GPA为百分制${grade}分，`
     } else if (gradeSystem === '五分制') {
-      message += `五分制${grade}分，`
+      message += `GPA为五分制${grade}分，`
     } else if (gradeSystem === '四分制') {
-      message += `四分制${grade}分，`
+      message += `GPA为四分制${grade}分，`
     }
     
     // 是否在读
     message += isCurrentStudent ? '在读，' : '已毕业，'
     
+    // 添加语言考试成绩
+    if (languageTestType && languageTestScore) {
+      message += `${languageTestType}成绩${languageTestScore}分，`
+    }
+    
+    // 添加标准化考试成绩
+    if (standardizedTestType && standardizedTestType !== '无' && standardizedTestScore) {
+      message += `${standardizedTestType}成绩${standardizedTestScore}分，`
+    }
+    
     // 目标学校
-    message += `想申请${targetSchool}`
+    if (typeof targetSchool !== 'undefined' && targetSchool) {
+      message += `想申请${targetSchool}，`
+    }
+    
+    // 添加其他需求
+    if (requirements && requirements.trim()) {
+      message += `其他需求：${requirements}`
+    } else {
+      // 如果没有其他需求，移除最后的逗号
+      message = message.replace(/，$/, '')
+    }
     
     console.log('📝 构建的消息:', message)
     
@@ -207,9 +245,13 @@ export async function POST(request: NextRequest) {
       console.log('📤 发送给后端的数据:', backendData)
     } else {
       console.info('📤 API请求 - 学校匹配', { 
-        school: studentSchool, 
+        school: studentSchool,
+        major: major || '未指定',
         grade: `${gradeSystem}${grade}分`,
-        target: targetSchool,
+        languageTest: languageTestType && languageTestScore ? `${languageTestType}${languageTestScore}分` : '未提供',
+        standardizedTest: standardizedTestType && standardizedTestType !== '无' && standardizedTestScore ? `${standardizedTestType}${standardizedTestScore}分` : '未提供',
+        target: targetSchool || '未指定',
+        hasRequirements: !!(requirements && requirements.trim()),
         sessionId 
       })
     }
