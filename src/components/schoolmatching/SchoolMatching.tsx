@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { schoolMatchAPI, handleAPIError, type SchoolMatchResponse } from '@/lib/api'
 import { type PromptData } from '../PromptCustomizer'
 import SchoolMatchingForm, { type FormData } from './SchoolMatchingForm'
+import SchoolMatchingResult from './SchoolMatchingResult'
 import { toast } from "sonner"
 
 
@@ -48,6 +49,173 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
       console.log('SchoolMatching组件已挂载，使用纯React状态（组件不卸载）')
     }
   }, [])
+
+  // 辅助函数：解析matched_schools数据
+  const parseMatchedSchools = (resultObject: any): any[] | null => {
+    if (!resultObject) {
+      console.log('❌ resultObject为空')
+      return null
+    }
+    
+    console.log('🔍 开始解析matched_schools...', resultObject)
+    
+    // 方法1: 直接从对象中获取
+    if (resultObject.matched_schools) {
+      console.log('✅ 直接从对象获取matched_schools成功', resultObject.matched_schools)
+      return resultObject.matched_schools
+    }
+    
+    // 方法2: 从eventData中获取
+    if (resultObject.eventData && resultObject.eventData.matched_schools) {
+      console.log('✅ 从eventData获取matched_schools成功', resultObject.eventData.matched_schools)
+      return resultObject.eventData.matched_schools
+    }
+    
+    // 方法3: 从响应文本解析
+    const responseText = resultObject.response || resultObject.message || resultObject.content
+    if (!responseText) {
+      console.log('❌ 没有找到响应文本')
+      return null
+    }
+    
+    console.log('📝 响应文本长度:', responseText.length)
+    console.log('📝 响应文本内容:', responseText)
+    
+        try {
+      // 方法3a: 尝试解析完整的JSON响应
+      try {
+        const jsonData = JSON.parse(responseText)
+        if (jsonData.matched_schools) {
+          console.log('✅ 直接JSON解析获取matched_schools成功', jsonData.matched_schools)
+          return jsonData.matched_schools
+        }
+      } catch (directParseError) {
+        console.log('⚠️ 直接JSON解析失败:', directParseError instanceof Error ? directParseError.message : String(directParseError))
+      }
+      
+      // 方法3a2: 专门处理以```json开头的响应
+      if (responseText.trim().startsWith('```json')) {
+        console.log('🔍 检测到markdown JSON格式响应')
+        // 找到第一个{的位置
+        const jsonStart = responseText.indexOf('{')
+        if (jsonStart !== -1) {
+          // 从最后往前找到最后一个}
+          const jsonEnd = responseText.lastIndexOf('}')
+          if (jsonEnd !== -1 && jsonEnd > jsonStart) {
+            const extractedJson = responseText.substring(jsonStart, jsonEnd + 1)
+            console.log('📝 提取的JSON片段长度:', extractedJson.length)
+            console.log('📝 提取的JSON前200字符:', extractedJson.substring(0, 200))
+            console.log('📝 提取的JSON后200字符:', extractedJson.substring(Math.max(0, extractedJson.length - 200)))
+            
+            try {
+              const jsonData = JSON.parse(extractedJson)
+              if (jsonData.matched_schools) {
+                console.log('✅ 从提取的JSON片段获取matched_schools成功', jsonData.matched_schools)
+                return jsonData.matched_schools
+              }
+            } catch (extractParseError) {
+              console.warn('❌ 提取的JSON片段解析失败:', extractParseError instanceof Error ? extractParseError.message : String(extractParseError))
+            }
+          }
+        }
+      }
+      
+            // 方法3b: 从markdown代码块中提取
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/i)
+      if (jsonMatch) {
+        console.log('🔍 找到markdown JSON代码块')
+        console.log('📝 提取的JSON内容:', jsonMatch[1])
+        try {
+          const jsonData = JSON.parse(jsonMatch[1])
+          if (jsonData.matched_schools) {
+            console.log('✅ 从markdown代码块获取matched_schools成功', jsonData.matched_schools)
+            return jsonData.matched_schools
+          }
+        } catch (markdownParseError) {
+          console.warn('❌ markdown代码块解析失败:', markdownParseError instanceof Error ? markdownParseError.message : String(markdownParseError))
+          console.log('❌ 提取的内容长度:', jsonMatch[1].length)
+          console.log('❌ 提取的内容前500字符:', jsonMatch[1].substring(0, 500))
+        }
+      } else {
+        // 尝试更宽松的markdown匹配
+        const loosejsonMatch = responseText.match(/```json\s*([\s\S]*)/i)
+        if (loosejsonMatch) {
+          console.log('🔍 找到松散的markdown JSON代码块')
+          // 尝试找到JSON结束位置
+          let jsonStr = loosejsonMatch[1]
+          
+          // 移除末尾的```如果存在
+          jsonStr = jsonStr.replace(/\s*```\s*$/, '')
+          
+          console.log('📝 松散提取的JSON内容长度:', jsonStr.length)
+          console.log('📝 松散提取的JSON前500字符:', jsonStr.substring(0, 500))
+          
+          try {
+            const jsonData = JSON.parse(jsonStr)
+            if (jsonData.matched_schools) {
+              console.log('✅ 从松散markdown代码块获取matched_schools成功', jsonData.matched_schools)
+              return jsonData.matched_schools
+            }
+          } catch (looseParseError) {
+            console.warn('❌ 松散markdown解析失败:', looseParseError instanceof Error ? looseParseError.message : String(looseParseError))
+          }
+        }
+      }
+        
+        // 方法3c: 更宽泛的JSON匹配 - 查找包含matched_schools的完整JSON对象
+        const broadJsonMatch = responseText.match(/\{[\s\S]*?"matched_schools"\s*:\s*\[[\s\S]*?\][\s\S]*?\}/i)
+        if (broadJsonMatch) {
+          console.log('🔍 找到宽泛JSON匹配')
+          try {
+            const jsonData = JSON.parse(broadJsonMatch[0])
+            if (jsonData.matched_schools) {
+              console.log('✅ 从宽泛JSON匹配获取matched_schools成功', jsonData.matched_schools)
+              return jsonData.matched_schools
+            }
+          } catch (broadParseError) {
+            console.warn('❌ 宽泛JSON匹配解析失败:', broadParseError instanceof Error ? broadParseError.message : String(broadParseError))
+          }
+        }
+        
+        // 方法3d: 直接提取matched_schools数组
+        const schoolsArrayMatch = responseText.match(/"matched_schools"\s*:\s*\[[\s\S]*?\]/i)
+        if (schoolsArrayMatch) {
+          console.log('🔍 找到matched_schools数组匹配')
+          try {
+            const arrayStr = schoolsArrayMatch[0].replace(/^"matched_schools"\s*:\s*/, '')
+            const schoolsArray = JSON.parse(arrayStr)
+            if (Array.isArray(schoolsArray) && schoolsArray.length > 0) {
+              console.log('✅ 从数组匹配获取matched_schools成功', schoolsArray)
+              return schoolsArray
+            }
+          } catch (arrayParseError) {
+            console.warn('❌ 数组匹配解析失败:', arrayParseError instanceof Error ? arrayParseError.message : String(arrayParseError))
+          }
+        }
+        
+        // 方法3e: 尝试多行匹配更大的JSON结构 - 使用[\s\S]代替s标志
+        const multilineJsonMatch = responseText.match(/\{[^{}]*"matched_schools"[^{}]*\[[\s\S]*?\][^{}]*\}/i)
+        if (multilineJsonMatch) {
+          console.log('🔍 找到多行JSON匹配')
+          try {
+            const jsonData = JSON.parse(multilineJsonMatch[0])
+            if (jsonData.matched_schools) {
+              console.log('✅ 从多行JSON匹配获取matched_schools成功', jsonData.matched_schools)
+              return jsonData.matched_schools
+            }
+          } catch (multilineParseError) {
+            console.warn('❌ 多行JSON匹配解析失败:', multilineParseError instanceof Error ? multilineParseError.message : String(multilineParseError))
+          }
+        }
+      
+    } catch (error) {
+      console.error('❌ 解析matched_schools时发生错误:', error)
+    }
+    
+    console.log('❌ 所有解析方法都失败了')
+    console.log('💡 响应文本中是否包含matched_schools:', responseText.includes('matched_schools'))
+    return null
+  }
 
   // 分数转换函数
   const convertGrade = (grade: string, fromSystem: string, toSystem: string): string => {
@@ -198,12 +366,20 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
           (message: string) => {
             setProgressMessage(message)
           },
-          // onComplete: 处理最终结果
+                    // onComplete: 处理最终结果
           (finalResult: any) => {
             if (process.env.NODE_ENV === 'development') {
               console.log('SSE流处理完成:', finalResult)
             }
-            setMatchResult(finalResult)
+            
+            // 使用辅助函数解析matched_schools数据
+            const matchedSchools = parseMatchedSchools(finalResult)
+            
+            setMatchResult({
+              ...finalResult,
+              matched_schools: matchedSchools
+            })
+            
             toast.success('匹配完成', {
               description: '院校匹配已成功完成，请查看结果'
             })
@@ -229,7 +405,14 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
           await new Promise(resolve => setTimeout(resolve, 500))
         }
         
-        setMatchResult(result)
+                // 使用辅助函数解析matched_schools数据
+        const matchedSchools = parseMatchedSchools(result)
+        
+        setMatchResult({
+          ...result,
+          matched_schools: matchedSchools
+        })
+        
         toast.success('匹配完成', {
           description: '院校匹配已成功完成，请查看结果'
         })
@@ -248,6 +431,58 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
   }
 
   // 清除所有数据
+  // 测试表格数据 - 临时测试功能
+  const handleTestTableData = () => {
+    const testData = {
+      success: true,
+      response: "这是测试数据的响应内容",
+      timestamp: new Date().toISOString(),
+      session_id: Date.now().toString(),
+      matched_schools: [
+        {
+          school_category: "冲刺",
+          qs_ranking: "4",
+          chinese_name: "牛津大学",
+          english_name: "University of Oxford",
+          course_link: "https://www.ox.ac.uk/admissions/graduate/courses/courses-a-z-listing",
+          admission_requirement: "计算机科学专业通常要求获得一等或2:1学位，具体取决于学院和课程。",
+          recommendation_reason: "牛津大学是世界顶尖学府，其计算机科学专业享有盛誉。",
+          major_category: "非艺术类",
+          location: "牛津",
+          comments: "建议重点关注计算机科学相关的硕士或博士项目。"
+        },
+        {
+          school_category: "冲刺",
+          qs_ranking: "6",
+          chinese_name: "剑桥大学",
+          english_name: "University of Cambridge",
+          course_link: "https://www.postgraduate.study.cam.ac.uk/courses?ucam-ref=homepage-signpost",
+          admission_requirement: "计算机科学专业通常要求获得一等或2:1学位。",
+          recommendation_reason: "剑桥大学是另一所世界顶尖学府，其计算机科学研究实力雄厚。",
+          major_category: "非艺术类",
+          location: "剑桥",
+          comments: "可以考虑申请其计算机科学的授课型硕士项目。"
+        },
+        {
+          school_category: "主申",
+          qs_ranking: "2",
+          chinese_name: "帝国理工学院",
+          english_name: "Imperial College London",
+          course_link: "https://www.imperial.ac.uk/study/courses/?courseType=postgraduate+taught&keywords=",
+          admission_requirement: "计算机科学专业通常要求获得一等或2:1学位。",
+          recommendation_reason: "帝国理工学院在工程和计算机科学领域享有极高声誉。",
+          major_category: "非艺术类",
+          location: "伦敦",
+          comments: "重点关注其计算机科学系提供的授课型硕士项目。"
+        }
+      ]
+    }
+    setMatchResult(testData)
+    toast.success('测试数据已加载', {
+      description: '您现在可以看到表格的显示效果了'
+    })
+  }
+
   const handleClearAll = () => {
     toast('确定要清除所有数据吗？', {
       description: '这将删除表单内容和查询结果，此操作无法撤销。',
@@ -301,14 +536,7 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
     })
   }
 
-  // 格式化匹配结果显示
-  const formatMatchResult = (response: string) => {
-    // 将响应文本转换为HTML格式
-    return response
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br/>')
-  }
+
 
   // 检查是否有数据需要显示清除按钮
   const hasData = Boolean(
@@ -328,7 +556,7 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
   )
 
   return (
-    <div className="max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 py-16 min-h-screen">
+    <div className="max-w-8xl mx-auto px-6 sm:px-8 lg:px-12 py-16 min-h-screen">
       {/* 使用提取的表单组件 */}
       <SchoolMatchingForm
         formData={formData}
@@ -344,99 +572,17 @@ export default function SchoolMatching({ onComplete }: SchoolMatchingProps) {
         onGradeChange={handleGradeChange}
         onSubmit={handleSubmit}
         onClearAll={handleClearAll}
+        onTestTableData={handleTestTableData}
       />
 
       {/* 匹配结果卡片 - 只在有结果时显示 */}
       {matchResult && (
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border-0 p-10 hover:shadow-3xl transition-all duration-300 mb-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-black mb-3">
-              🎯 匹配结果
-            </h2>
-            <p className="text-gray-600">
-              基于您的背景为您匹配到以下院校
-            </p>
-          </div>
-
-          {/* 用户输入信息回显 */}
-          <div className="bg-gray-50 rounded-2xl p-6 mb-8">
-            <h3 className="font-semibold text-gray-800 mb-4">📋 查询信息</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold text-gray-700">学校：</span>
-                <span className="text-gray-600">{formData.studentSchool}</span>
-              </div>
-              {formData.major && (
-                <div>
-                  <span className="font-semibold text-gray-700">专业：</span>
-                  <span className="text-gray-600">{formData.major}</span>
-                </div>
-              )}
-              <div>
-                <span className="font-semibold text-gray-700">均分：</span>
-                <span className="text-gray-600">{formData.gradeSystem} {formData.grade}分</span>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-700">状态：</span>
-                <span className="text-gray-600">{formData.isCurrentStudent ? '在读' : '已毕业'}</span>
-              </div>
-              {formData.languageTestType && formData.languageTestScore && (
-                <div>
-                  <span className="font-semibold text-gray-700">语言成绩：</span>
-                  <span className="text-gray-600">{formData.languageTestType} {formData.languageTestScore}分</span>
-                </div>
-              )}
-              {formData.standardizedTestType && formData.standardizedTestType !== '无' && formData.standardizedTestScore && (
-                <div>
-                  <span className="font-semibold text-gray-700">标准化考试：</span>
-                  <span className="text-gray-600">{formData.standardizedTestType} {formData.standardizedTestScore}分</span>
-                </div>
-              )}
-              <div>
-                <span className="font-semibold text-gray-700">目标院校：</span>
-                <span className="text-gray-600">{formData.targetSchool}</span>
-              </div>
-              {formData.requirements && (
-                <div className="md:col-span-2">
-                  <span className="font-semibold text-gray-700">其他需求：</span>
-                  <span className="text-gray-600">{formData.requirements}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 匹配结果内容 */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-8 mb-6">
-            <div 
-              className="prose prose-gray max-w-none"
-              dangerouslySetInnerHTML={{ 
-                __html: formatMatchResult(matchResult.response) 
-              }}
-            />
-          </div>
-
-          {/* 时间戳和会话信息 */}
-          <div className="text-center text-sm text-gray-500 mb-6">
-            <div>匹配时间: {new Date(matchResult.timestamp).toLocaleString('zh-CN')}</div>
-            <div className="text-xs mt-1">会话ID: {matchResult.session_id}</div>
-          </div>
-          
-          {/* 结果操作按钮 */}
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={() => setMatchResult(null)}
-              className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-2xl hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300"
-            >
-              🔄 清除结果
-            </button>
-            <button
-              onClick={onComplete}
-              className="px-8 py-4 bg-black text-white font-semibold rounded-2xl hover:bg-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-400 transition-all duration-300 transform hover:scale-105 hover:shadow-xl active:scale-95"
-            >
-              ✨ 继续下一步
-            </button>
-          </div>
-        </div>
+        <SchoolMatchingResult
+          matchResult={matchResult}
+          formData={formData}
+          onClearResult={() => setMatchResult(null)}
+          onComplete={onComplete}
+        />
       )}
 
     </div>

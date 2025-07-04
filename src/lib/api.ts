@@ -62,7 +62,7 @@ export const schoolMatchAPI = {
   processSSEStream: async (
     response: Response, 
     onProgress: (message: string) => void,
-    onComplete: (result: any) => void,
+    onComplete: (result: any, rawResponse?: string) => void,
     onError: (error: string) => void
   ) => {
     const reader = response.body?.getReader()
@@ -75,15 +75,42 @@ export const schoolMatchAPI = {
 
     let buffer = ''
     let finalResult: any = null
+    let rawResponseText = '' // 保存原始响应文本
+    let accumulatedResponse = '' // 累积的response内容
+    let hasReceivedEndEvent = false // 是否收到end事件
+    let totalChunks = 0 // 接收的数据块总数
+    let totalBytes = 0 // 接收的总字节数
+    let lastDataTime = Date.now() // 最后接收数据的时间
+    const TIMEOUT_MS = 30000 // 30秒超时
     
     try {
+      // 【关键修复】：不要在收到end事件时立即结束，而是等待所有数据读取完毕
       while (true) {
+        // 检查超时
+        if (Date.now() - lastDataTime > TIMEOUT_MS) {
+          console.warn('⏰ SSE流接收超时，强制结束')
+          break
+        }
+        
         const { done, value } = await reader.read()
         
-        if (done) break
+        if (done) {
+          console.log('📡 SSE流读取完毕 - 所有数据已接收')
+          console.log('📊 接收统计: 总数据块', totalChunks, '总字节数', totalBytes)
+          break
+        }
+        
+        // 更新最后接收数据时间
+        lastDataTime = Date.now()
         
         // 解码数据块
-        buffer += decoder.decode(value, { stream: true })
+        const chunk = decoder.decode(value, { stream: true })
+        buffer += chunk
+        totalChunks++
+        totalBytes += chunk.length
+        
+        console.log(`📡 接收数据块 #${totalChunks}，长度: ${chunk.length}`)
+        console.log(`📡 当前buffer长度: ${buffer.length}`)
         
         // 按行分割处理
         const lines = buffer.split('\n')
@@ -91,6 +118,9 @@ export const schoolMatchAPI = {
         
         for (const line of lines) {
           const trimmedLine = line.trim()
+          
+          // 保存原始响应文本
+          rawResponseText += line + '\n'
           
           // 跳过空行和注释
           if (!trimmedLine || trimmedLine.startsWith(':')) {
@@ -103,7 +133,17 @@ export const schoolMatchAPI = {
               const dataStr = trimmedLine.substring(6) // 移除 "data: " 前缀
               const eventData = JSON.parse(dataStr)
               
-              console.log('📥 SSE事件:', eventData)
+              console.log('📥 SSE事件类型:', eventData.type)
+              console.log('📝 事件数据keys:', Object.keys(eventData))
+              
+              // 记录所有事件的数据内容（用于调试）
+              if (eventData.response || eventData.content || eventData.data) {
+                console.log('📝 事件包含数据内容:', {
+                  response: eventData.response ? `长度${eventData.response.length}` : '无',
+                  content: eventData.content ? `长度${eventData.content.length}` : '无',
+                  data: eventData.data ? `长度${eventData.data.length}` : '无'
+                })
+              }
               
               // 实时显示进度消息
               if (eventData.description) {
@@ -112,43 +152,125 @@ export const schoolMatchAPI = {
                 onProgress(eventData.message)
               }
               
-              // 收集最终结果
-              if (eventData.type === 'final_response' || eventData.type === 'result' || eventData.type === 'final') {
-                finalResult = eventData
-              } else if (eventData.type === 'ai_token' && eventData.content) {
-                // 收集AI回复的token以构建完整响应
-                if (!finalResult) {
-                  finalResult = { type: 'ai_response', response: '' }
+              // 处理final_response类型的事件
+              if (eventData.type === 'final_response') {
+                console.log('📥 收到final_response事件')
+                console.log('📝 事件完整内容:', JSON.stringify(eventData, null, 2))
+                
+                if (eventData.response) {
+                  console.log('📝 本次response内容长度:', eventData.response.length)
+                  console.log('📝 本次response开头100字符:', eventData.response.substring(0, 100))
+                  console.log('📝 本次response结尾100字符:', eventData.response.substring(Math.max(0, eventData.response.length - 100)))
+                  
+                  accumulatedResponse += eventData.response
+                  console.log('📝 累积response长度:', accumulatedResponse.length)
+                  console.log('📝 累积response结尾200字符:', accumulatedResponse.substring(Math.max(0, accumulatedResponse.length - 200)))
                 }
-                if (finalResult.type === 'ai_response') {
-                  finalResult.response = (finalResult.response || '') + eventData.content
+                
+                // 保存或更新最终结果
+                finalResult = {
+                  ...finalResult,
+                  ...eventData,
+                  response: accumulatedResponse
+                }
+              }
+              
+              // 【关键修复】：只记录end事件，不要立即结束读取
+              if (eventData.type === 'end') {
+                console.log('📥 收到end事件，但继续读取剩余数据')
+                hasReceivedEndEvent = true
+                // 不要break，继续读取剩余数据
+              }
+              
+              // 【新增】：处理所有可能包含数据的事件类型
+              if (eventData.type !== 'final_response' && 
+                  (eventData.response || eventData.content || eventData.data)) {
+                console.log('📥 发现其他类型事件包含数据:', eventData.type)
+                
+                let additionalData = eventData.response || eventData.content || eventData.data
+                if (additionalData) {
+                  console.log('📝 其他事件数据长度:', additionalData.length)
+                  console.log('📝 其他事件数据内容（前100字符）:', additionalData.substring(0, 100))
+                  accumulatedResponse += additionalData
+                  console.log('📝 累积response更新长度:', accumulatedResponse.length)
+                }
+              }
+              
+              // 如果事件数据包含matched_schools，也保存它
+              if (eventData.matched_schools) {
+                finalResult = {
+                  ...finalResult,
+                  matched_schools: eventData.matched_schools
                 }
               }
               
             } catch (parseError) {
               console.warn('解析SSE数据失败:', trimmedLine, parseError)
+              // 保存解析失败的行，以便后续分析
+              console.warn('解析失败的行内容:', trimmedLine)
             }
           }
         }
       }
       
+      // 【关键修复】：处理最后剩余的buffer数据
+      if (buffer.trim()) {
+        console.log('📡 处理剩余buffer:', buffer.length, '字符')
+        console.log('📡 剩余buffer内容:', buffer)
+        rawResponseText += buffer
+        
+        // 尝试从剩余buffer中解析数据
+        const remainingLines = buffer.split('\n')
+        for (const line of remainingLines) {
+          const trimmedLine = line.trim()
+          if (trimmedLine.startsWith('data: ')) {
+            try {
+              const dataStr = trimmedLine.substring(6)
+              const eventData = JSON.parse(dataStr)
+              
+              if (eventData.type === 'final_response' && eventData.response) {
+                accumulatedResponse += eventData.response
+                console.log('📝 从剩余buffer添加response:', eventData.response.length, '字符')
+              }
+            } catch (parseError) {
+              console.warn('解析剩余buffer失败:', trimmedLine, parseError)
+            }
+          }
+        }
+      }
+      
+      console.log('📊 SSE流处理完成统计:')
+      console.log('- 接收的数据块总数:', totalChunks)
+      console.log('- 接收的总字节数:', totalBytes)
+      console.log('- 原始响应文本长度:', rawResponseText.length)
+      console.log('- 累积response长度:', accumulatedResponse.length)
+      console.log('- 是否收到end事件:', hasReceivedEndEvent)
+      console.log('- finalResult存在:', !!finalResult)
+      
+      // 【额外调试】：检查累积的response内容
+      if (accumulatedResponse) {
+        console.log('📝 累积response前500字符:', accumulatedResponse.substring(0, 500))
+        console.log('📝 累积response后500字符:', accumulatedResponse.substring(Math.max(0, accumulatedResponse.length - 500)))
+      }
+      
       // 处理完成
       if (finalResult) {
-        const responseContent = finalResult.response || finalResult.message || finalResult.content || '匹配完成'
+        const responseContent = finalResult.response || accumulatedResponse || finalResult.message || finalResult.content || '匹配完成'
         onComplete({
           success: true,
           response: responseContent,
           timestamp: new Date().toISOString(),
           session_id: Date.now().toString(),
-          eventData: finalResult
-        })
+          eventData: finalResult,
+          matched_schools: finalResult.matched_schools || null
+        }, rawResponseText)
       } else {
         onComplete({
           success: true,
-          response: '匹配完成，但未获取到详细结果',
+          response: accumulatedResponse || '匹配完成，但未获取到详细结果',
           timestamp: new Date().toISOString(),
           session_id: Date.now().toString()
-        })
+        }, rawResponseText)
       }
       
     } catch (error) {
@@ -177,6 +299,20 @@ export interface SchoolMatchResponse {
   progressMessages?: string[]
   steps?: any[]
   eventData?: any
+  matched_schools?: MatchedSchool[]
+}
+
+export interface MatchedSchool {
+  school_category: string
+  qs_ranking: string
+  chinese_name: string
+  english_name: string
+  course_link: string
+  admission_requirement: string
+  recommendation_reason: string
+  major_category: string
+  location: string
+  comments: string
 }
 
 export interface APIError {

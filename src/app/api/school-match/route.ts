@@ -214,16 +214,11 @@ export async function POST(request: NextRequest) {
     
     // 目标学校
     if (typeof targetSchool !== 'undefined' && targetSchool) {
-      message += `想申请${targetSchool}，`
+      message += `想申请${targetSchool}`
     }
     
-    // 添加其他需求
-    if (requirements && requirements.trim()) {
-      message += `其他需求：${requirements}`
-    } else {
-      // 如果没有其他需求，移除最后的逗号
-      message = message.replace(/，$/, '')
-    }
+    // 移除最后的逗号（如果有的话）
+    message = message.replace(/，$/, '')
     
     console.log('📝 构建的消息:', message)
     
@@ -237,7 +232,9 @@ export async function POST(request: NextRequest) {
       // 添加可选的提示词参数
       ...(role && { role }),
       ...(task && { task }),
-      ...(output_format && { output_format })
+      ...(output_format && { output_format }),
+      // 将其他需求作为独立参数
+      ...(requirements && requirements.trim() && { additional_requirements: requirements.trim() })
     }
     
     // 在开发环境使用console.log，生产环境使用console.info保留重要信息
@@ -251,7 +248,7 @@ export async function POST(request: NextRequest) {
         languageTest: languageTestType && languageTestScore ? `${languageTestType}${languageTestScore}分` : '未提供',
         standardizedTest: standardizedTestType && standardizedTestType !== '无' && standardizedTestScore ? `${standardizedTestType}${standardizedTestScore}分` : '未提供',
         target: targetSchool || '未指定',
-        hasRequirements: !!(requirements && requirements.trim()),
+        hasAdditionalRequirements: !!(requirements && requirements.trim()),
         sessionId 
       })
     }
