@@ -1,7 +1,8 @@
 import React from 'react'
-import { type SchoolMatchResponse } from '@/lib/api'
+import { type SchoolMatchResponse } from '../../lib/api'
 import { type FormData } from './SchoolMatchingForm'
 import SchoolMatchingTable from './SchoolMatchingTable'
+import ProjectTable from './ProjectTable'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -75,6 +76,31 @@ export default function SchoolMatchingResult({
           )}
         </div>
       </div>
+
+      {/* 学生背景信息显示 */}
+      {matchResult?.student_background && (
+        <div className="bg-blue-50 rounded-2xl p-6 mb-8">
+          <h3 className="font-semibold text-blue-800 mb-4">👤 学生背景分析</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-semibold text-blue-700">本科院校：</span>
+              <span className="text-blue-600">{matchResult.student_background.domestic_university}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-blue-700">院校层级：</span>
+              <span className="text-blue-600">{matchResult.student_background.university_level}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-blue-700">GPA：</span>
+              <span className="text-blue-600">{matchResult.student_background.gpa_info}</span>
+            </div>
+            <div>
+              <span className="font-semibold text-blue-700">专业背景：</span>
+              <span className="text-blue-600">{matchResult.student_background.major_background}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 学校匹配表格 - 如果有匹配的学校数据就显示表格 */}
       {matchResult?.matched_schools && matchResult.matched_schools.length > 0 ? (
@@ -206,6 +232,11 @@ export default function SchoolMatchingResult({
             </ReactMarkdown>
           </div>
         </div>
+      )}
+
+      {/* 推荐项目表格 - 如果有推荐项目数据就显示表格 */}
+      {matchResult?.recommended_projects && matchResult.recommended_projects.length > 0 && (
+        <ProjectTable projects={matchResult.recommended_projects} />
       )}
 
       {/* 时间戳和会话信息 */}

@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+// 本文件已被注释，因当前项目不需要任何认证相关逻辑，仅作测试用途。
+// import { NextRequest, NextResponse } from 'next/server'
+// import { validateApiPermissions } from '@/lib/api-auth'
 
 // 学校匹配API路由
 
@@ -125,8 +127,24 @@ const parseSSEResponse = async (response: Response): Promise<any> => {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: any) {
   console.log('🚀 API开始处理请求...')
+  
+  // 验证用户权限
+  // const authResult = await validateApiPermissions(["*", "schoolmatch.*"]);
+  // if (authResult.error) {
+  //   console.error('权限验证失败:', authResult.error);
+  //   return authResult.error;
+  // }
+  
+  // 添加调试信息
+  // if (authResult.session) {
+  //   console.log('✅ 权限验证成功:', {
+  //     userId: authResult.session.user.id,
+  //     role: authResult.session.user.role,
+  //     permissions: authResult.session.user.permissions,
+  //   });
+  // }
   
   try {
     // 首先检查环境变量
@@ -254,15 +272,20 @@ export async function POST(request: NextRequest) {
     }
     
     // 获取API URL（多种方式尝试）
-    const backendUrl = process.env.BACKEND_API_URL 
+    const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL 
 
     console.log('🔗 环境变量BACKEND_API_URL:', process.env.BACKEND_API_URL)
+    console.log('🔗 环境变量NEXT_PUBLIC_BACKEND_API_URL:', process.env.NEXT_PUBLIC_BACKEND_API_URL)
     console.log('🔗 最终使用地址:', backendUrl)
     
     // 构建完整的API URL
     const apiUrl = `${backendUrl}/chat`
     console.log('🔗 调用接口:', apiUrl)
     console.log('🔧 使用配置:', process.env.BACKEND_API_URL ? '环境变量' : '硬编码')
+    
+    // 获取API Key
+    const apiKey = process.env.API_KEYS || 'newkb_live_sjkslaJLdjsklLKAJd909iAdhjksa'
+    console.log('🔑 使用API Key:', apiKey ? '已配置' : '未配置')
     
     // 调用后端API
     console.log('📡 开始调用后端API...')
@@ -273,6 +296,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream', // 明确指定接受SSE流
+          'X-API-Key': apiKey, // 添加API Key认证头部
         },
         body: JSON.stringify(backendData)
       }
@@ -337,7 +361,12 @@ export async function POST(request: NextRequest) {
     
     console.log('✅ API处理完成，准备返回响应')
     // 返回处理后的响应
-    return NextResponse.json(backendResponse)
+    return new Response(JSON.stringify(backendResponse), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
     
   } catch (error) {
     console.error('❌ API完整错误信息:', error)
@@ -346,26 +375,30 @@ export async function POST(request: NextRequest) {
     // 区分不同类型的错误
     if (error instanceof Error && error.message.includes('环境变量')) {
       console.error('❌ 环境变量配置错误')
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: '服务器配置错误',
-          message: '后端服务配置有误，请联系管理员',
-          details: error.message
+      return new Response(JSON.stringify({
+        success: false, 
+        error: '服务器配置错误',
+        message: '后端服务配置有误，请联系管理员',
+        details: error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
         },
-        { status: 500 }
-      )
+      })
     }
     
     console.error('❌ 通用服务器错误')
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: '服务器内部错误',
-        message: error instanceof Error ? error.message : '未知错误',
-        details: error instanceof Error ? error.stack : '无详细信息'
+    return new Response(JSON.stringify({
+      success: false, 
+      error: '服务器内部错误',
+      message: error instanceof Error ? error.message : '未知错误',
+      details: error instanceof Error ? error.stack : '无详细信息'
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
       },
-      { status: 500 }
-    )
+    })
   }
 } 

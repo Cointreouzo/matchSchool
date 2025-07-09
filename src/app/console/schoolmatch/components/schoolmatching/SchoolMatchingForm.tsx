@@ -1,6 +1,6 @@
 import React from 'react'
 import PromptCustomizer, { type PromptData } from '../PromptCustomizer'
-import { toast } from "sonner"
+import { toast } from "@/components/ui/use-toast"
 
 export interface FormData {
   studentSchool: string
@@ -99,7 +99,7 @@ export default function SchoolMatchingForm({
       </div>
       
       <div className="space-y-8">
-        <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+        <div className="flex space-x-4">
           {/* 客户学校名字输入框 */}
           <div className="flex-1">
             <label className="block text-sm font-semibold text-gray-800 mb-3">
@@ -180,19 +180,19 @@ export default function SchoolMatchingForm({
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row space-y-6 lg:space-y-0 lg:space-x-6">
+        <div className="flex space-x-4">
           {/* 客户均分 */}
           <div className="flex-1">
             <label className="block text-sm font-semibold text-gray-800 mb-3">
               📊 客户均分
             </label>
-            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex space-x-4">
               {/* 分制选择 */}
               <div className="relative">
                 <select
                   value={formData.gradeSystem}
                   onChange={(e) => onGradeSystemChange(e.target.value)}
-                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 w-full sm:min-w-[120px] cursor-pointer"
+                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 min-w-[120px] cursor-pointer"
                 >
                   <option value="百分制">百分制</option>
                   <option value="英国学位制">英国学位制</option>
@@ -212,7 +212,6 @@ export default function SchoolMatchingForm({
                 type="number"
                 value={formData.grade}
                 onChange={(e) => onGradeChange(e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
                 placeholder={getGradePlaceholder()}
                 className="flex-1 px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300"
                 min="0"
@@ -236,13 +235,13 @@ export default function SchoolMatchingForm({
             <label className="block text-sm font-semibold text-gray-800 mb-3">
               🗣️ 语言考试成绩
             </label>
-            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex space-x-4">
               {/* 语言考试类型选择 */}
               <div className="relative">
                 <select
                   value={formData.languageTestType}
                   onChange={(e) => onInputChange('languageTestType', e.target.value)}
-                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 w-full sm:min-w-[140px] cursor-pointer"
+                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 min-w-[140px] cursor-pointer"
                 >
                   <option value="">选择考试类型</option>
                   <option value="雅思">雅思 (IELTS)</option>
@@ -262,7 +261,6 @@ export default function SchoolMatchingForm({
                 type="number"
                 value={formData.languageTestScore}
                 onChange={(e) => onInputChange('languageTestScore', e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
                 placeholder={getLanguageTestScorePlaceholder()}
                 disabled={!formData.languageTestType}
                 className="flex-1 px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -282,19 +280,19 @@ export default function SchoolMatchingForm({
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row space-y-6 lg:space-y-0 lg:space-x-6">
+        <div className="flex space-x-4">
           {/* 标准化考试成绩 */}
           <div className="flex-1">
             <label className="block text-sm font-semibold text-gray-800 mb-3">
               📝 标准化考试成绩
             </label>
-            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="flex space-x-4">
               {/* 标准化考试类型选择 */}
               <div className="relative">
                 <select
                   value={formData.standardizedTestType}
                   onChange={(e) => onInputChange('standardizedTestType', e.target.value)}
-                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 w-full sm:min-w-[120px] cursor-pointer"
+                  className="appearance-none px-5 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 font-medium text-gray-800 min-w-[120px] cursor-pointer"
                 >
                   <option value="">选择考试类型</option>
                   <option value="GRE">GRE</option>
@@ -314,7 +312,6 @@ export default function SchoolMatchingForm({
                 type="number"
                 value={formData.standardizedTestScore}
                 onChange={(e) => onInputChange('standardizedTestScore', e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
                 placeholder={getStandardizedTestScorePlaceholder()}
                 disabled={!formData.standardizedTestType || formData.standardizedTestType === '无'}
                 className="flex-1 px-5 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-gray-200 focus:border-gray-400 transition-all duration-200 text-gray-800 bg-gray-50/50 hover:bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"

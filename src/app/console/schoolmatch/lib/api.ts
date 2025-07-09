@@ -17,7 +17,7 @@ export const schoolMatchAPI = {
   }) => {
     console.log('🔄 开始调用学校匹配API...', data)
     
-    const response = await fetch(`${API_BASE_URL}/api/school-match`, {
+    const response = await fetch(`${API_BASE_URL}/console/schoolmatch/api/school-match`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,14 +32,21 @@ export const schoolMatchAPI = {
       let errorDetails = `API调用失败: ${response.status} ${response.statusText}`
       
       try {
-        const errorData = await response.json()
+        // 先clone响应，避免body被消费
+        const responseClone = response.clone()
+        const errorData = await responseClone.json()
         console.error('❌ API错误详情:', errorData)
         errorDetails += ` - ${errorData.message || errorData.error || '无详细信息'}`
       } catch (parseError) {
-        console.error('❌ 无法解析错误响应:', parseError)
-        const errorText = await response.text()
-        console.error('❌ 错误响应文本:', errorText)
-        errorDetails += ` - ${errorText}`
+        console.error('❌ 无法解析JSON错误响应:', parseError)
+        try {
+          const errorText = await response.text()
+          console.error('❌ 错误响应文本:', errorText)
+          errorDetails += ` - ${errorText}`
+        } catch (textError) {
+          console.error('❌ 无法读取错误响应文本:', textError)
+          errorDetails += ` - 无法读取错误详情`
+        }
       }
       
       throw new Error(errorDetails)
@@ -204,6 +211,22 @@ export const schoolMatchAPI = {
                 }
               }
               
+              // 如果事件数据包含student_background，也保存它
+              if (eventData.student_background) {
+                finalResult = {
+                  ...finalResult,
+                  student_background: eventData.student_background
+                }
+              }
+              
+              // 如果事件数据包含recommended_projects，也保存它
+              if (eventData.recommended_projects) {
+                finalResult = {
+                  ...finalResult,
+                  recommended_projects: eventData.recommended_projects
+                }
+              }
+              
             } catch (parseError) {
               console.warn('解析SSE数据失败:', trimmedLine, parseError)
               // 保存解析失败的行，以便后续分析
@@ -262,7 +285,9 @@ export const schoolMatchAPI = {
           timestamp: new Date().toISOString(),
           session_id: Date.now().toString(),
           eventData: finalResult,
-          matched_schools: finalResult.matched_schools || null
+          matched_schools: finalResult.matched_schools || null,
+          student_background: finalResult.student_background || null,
+          recommended_projects: finalResult.recommended_projects || null
         }, rawResponseText)
       } else {
         onComplete({
@@ -300,6 +325,40 @@ export interface SchoolMatchResponse {
   steps?: any[]
   eventData?: any
   matched_schools?: MatchedSchool[]
+  student_background?: StudentBackground
+  recommended_projects?: RecommendedProject[]
+}
+
+export interface StudentBackground {
+  domestic_university: string
+  university_level: string
+  gpa_info: string
+  major_background: string
+}
+
+export interface RecommendedProject {
+  school_name: string
+  school_ranking: number
+  project_name: string
+  project_link: string
+  duration: string
+  tuition_fee: string
+  ielts_requirement: string
+  gpa_requirement: {
+    percentage: string
+    four_point: string
+    five_point: string
+    uk_degree: string
+  }
+  gre_gmat_requirement: {
+    required: string
+    type: string
+    score: string
+    note: string
+  }
+  professional_background: string
+  matched_tags: string[]
+  application_difficulty: string
 }
 
 export interface MatchedSchool {
@@ -312,6 +371,7 @@ export interface MatchedSchool {
   recommendation_reason: string
   major_category: string
   location: string
+  education_group?: string
   comments: string
 }
 
